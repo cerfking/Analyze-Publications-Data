@@ -1,0 +1,7 @@
+"0","```r
+library(RSQLite)
+fpath = \"/Users/Cerf/Desktop/R/databases/\"
+dbfile = \"BooksDB.sqlite\"
+dbcon <- dbConnect(SQLite(), paste0(fpath, dbfile))
+
+```"

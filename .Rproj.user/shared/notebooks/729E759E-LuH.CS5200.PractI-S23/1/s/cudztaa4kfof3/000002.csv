@@ -1,0 +1,4 @@
+"0","```r
+bds.raw <- read.csv(file = \"BirdStrikesData-V2.csv\", header = T, stringsAsFactors = FALSE)
+head(bds.raw)
+```"

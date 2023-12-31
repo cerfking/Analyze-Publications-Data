@@ -1,0 +1,2 @@
+"0","insert into conditions(cid,`condition`,explanation)
+values(1,'Overcast',null)"

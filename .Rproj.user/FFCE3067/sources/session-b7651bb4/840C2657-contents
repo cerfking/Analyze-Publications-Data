@@ -1,0 +1,327 @@
+---
+title: "[CS5200] Practicum 1 / Design & Implement a Relational Database"
+output: html_notebook
+Topic: "Building a database for analyzing bird strikes on aircraft"
+Author: "Huajing Lu" "Yisong Cheng"
+---
+
+## ######### Connect to Database ###############################################
+```{r connectToDatabase, eval = T, warning = F}
+# 1. Library (must be installed prior to loading
+library(RMySQL)     ### MySQL
+
+# 2. Initial settings
+db_user <- 'root'
+db_password <- 'cerf0312*'
+db_name <- 'Test'
+
+db_host <- 'localhost' 
+db_port <- 3306 # always this port unless you change it during installation
+
+# 3. Connect to the database
+mydb <-  dbConnect(MySQL(), user = db_user, password = db_password,
+                 dbname = db_name, host = db_host, port = db_port)
+```
+
+## ######### Create Tables in the Database #####################################
+```{sql createAirportsTable, connection = mydb}
+create table airports(
+  aid integer primary key AUTO_INCREMENT,
+  airportName text,
+  airportCode text,
+  state text
+)
+```
+
+```{sql createAirlinesTable, connection = mydb}
+create table airlines(
+  eid integer primary key AUTO_INCREMENT,
+  airlineName text,
+  airlineCode text,
+  flag text
+)
+```
+
+```{sql createConditionsTable, connection = mydb}
+create table conditions(
+  cid integer primary key,
+  `condition` text,
+  explanation text
+  
+)
+```
+
+```{sql createIncidentsTable, connection = mydb}
+create table incidents(
+  rid integer primary key,
+  depdate date,
+  origin integer,
+  airline integer,
+  aircraft text,
+  flightphase text,
+  altitude integer,
+  conditions integer,
+  warned boolean,
+  foreign key (origin) references airports(aid),
+  foreign key (airline) references airlines(eid),
+  foreign key (conditions) references conditions(cid),
+  CHECK (altitude > 0),
+  CHECK (flightphase IN ('takeoff','landing','inflight','unknown'))
+)
+```
+
+
+## ######## Test Table Definitions #############################################
+```{sql testDef_AirportsTab, connection = mydb,eval = F}
+insert into airports(aid,airportName,airportCode,state)
+values(1,'LAGUARDIA','LGA','NY')
+```
+
+```{sql testDef_AirlinesTab, connection = mydb,eval = F}
+insert into airlines(eid,airlineName,airlineCode,flag)
+values(1,'US AIRWAYS*',null,null)
+```
+
+```{sql testDef_ConditionsTab, connection = mydb,eval = F}
+insert into conditions(cid,`condition`,explanation)
+values(1,'Overcast',null)
+```
+
+```{sql testDef_IncidentsTab, connection = mydb,eval = F}
+insert into incidents(
+    rid,depdate,origin,airline,aircraft,flightphase,altitude,conditions,warned)
+values(1,'2000-11-23',1,1,'Airplane','takeoff',1500,1,1)
+```
+
+
+## ######## Loading the Dataframe From BirdStrikesData-V2.csv###################
+```{r loadDataframe, eval = T, warning = F}
+bds.raw <- read.csv(file = "BirdStrikesData-V2.csv", header = T, stringsAsFactors = FALSE)
+head(bds.raw)
+```
+
+```{r populateTables, eval = T, warning = F}
+df.airports <- data.frame(aid = integer(0),airportName = character(0),
+                          airportCode = character(0),state = character(0))
+# Method of finding the primary key from Airports table
+findAirportPK <- function(aName, aCode, aState) {
+  
+  aid <- 0
+  doesExist <- any(df.airports$airportName == aName)
+  
+  if (doesExist == TRUE) {
+    # in the case of pk in the table already; get the id out
+    r <- which(df.airports$airportName == aName)
+    aid <- r[1]
+  } else {
+    # in the case of pk is not in the table
+    lastRow <- nrow(df.airports)
+    newRow <- lastRow + 1
+    df.airports[newRow,'aid'] <<- newRow
+    if (nchar(aName) == 0) {
+      aName <- 'UNKNOWN'
+    }
+    if (nchar(aCode) == 0) {
+      aCode <- 'UNKNOWN'
+    }
+    # set up new rows with parameters
+    df.airports[newRow,'airportName'] <<- aName
+    df.airports[newRow,'airportCode'] <<- aCode
+    df.airports[newRow,'state'] <<- aState
+    
+    aid <- newRow
+  }
+  return(aid)
+}
+
+# another same stragety method of finding primary keys in airlines table
+df.airlines <- data.frame(eid = integer(0),airlineName = character(0),airlineCode = character(0),flag = character(0))
+findAirlinePK <- function(aName,aCode,aFlag) {
+  eid <- 0
+  doesExist <- any(df.airlines$airlineName == aName)
+  if (doesExist == TRUE) {
+    r <- which(df.airlines$airlineName == aName)
+    eid <- r[1]
+  } else {
+    lastRow <- nrow(df.airlines)
+    newRow <- lastRow + 1
+    df.airlines[newRow,'eid'] <<- newRow
+    if (nchar(aFlag) == 0) {
+      aFlag <- 'UNKNOWN'
+    }
+    if (nchar(aCode) == 0) {
+      aCode <- 'UNKNOWN'
+    }
+    df.airlines[newRow,'airlineName'] <<- aName
+    df.airlines[newRow,'airlineCode'] <<- aCode
+    df.airlines[newRow,'flag'] <<- aFlag
+    eid <- newRow
+  }
+  return(eid)
+}
+
+df.conditions <- data.frame(cid = integer(0),condition = character(0),explanation = character(0))
+findConditionPK <- function(con,expl) {
+  cid <- 0
+  doesExist <- any(df.conditions$`condition` == con)
+  if (doesExist == TRUE) {
+    r <- which(df.conditions$`condition` == con)
+    cid <- r[1]
+  } else {
+    lastRow <- nrow(df.conditions)
+    newRow <- lastRow + 1
+    df.conditions[newRow,'cid'] <<- newRow
+    if (nchar(expl) == 0) {
+      expl <- 'UNKNOWN'
+    }
+    df.conditions[newRow,'condition'] <<- con
+    df.conditions[newRow,'explanation'] <<- expl
+    cid <- newRow
+  }
+  return(cid)
+}
+
+df.incidents <- data.frame(rid = integer(0),dep.date = character(0),origin = integer(0),airline = integer(0),aircraft = character(0),flight.phase = character(0),altitude = integer(0),conditions = integer(0),warned = logical(0))
+n <- nrow(bds.raw)
+for (r in 1:n) {
+  df.incidents[r,'rid'] <- bds.raw[r,'rid']
+  df.incidents[r,'dep.date'] <- bds.raw[r,'flight_date']
+  
+  aName <- bds.raw[r,'airport']
+  aCode <- ""
+  aState <- bds.raw[r,'origin']
+  cond <- bds.raw[r,'sky_conditions']
+ 
+  df.incidents[r,'origin'] <- findAirportPK(aName, aCode, aState)
+  
+  df.incidents[r,'airline'] <- findAirlinePK(aName = bds.raw[r,'airline'],aCode = "",aFlag = "")
+  df.incidents[r,'aircraft'] <- bds.raw[r,'aircraft']
+  df.incidents[r,'flight.phase'] <- bds.raw[r,'flight_phase']
+  df.incidents[r,'altitude'] <- bds.raw[r,'altitude_ft']
+  df.incidents[r,'conditions'] <- findConditionPK(con = cond,expl = "")
+  if (bds.raw[r,'pilot_warned_flag'] == 'N') {
+    df.incidents[r,'warned'] <- 0
+  } else {
+    df.incidents[r,'warned'] <- 1
+  }
+}
+# clean up the date column by remove the time stamp
+df.incidents$dep.date <- substr(df.incidents$dep.date,1,nchar(df.incidents$dep.date)-5)
+
+# if there is no flight date, we'll set to 1/1/1900
+df.incidents$dep.date <- ifelse(nchar(df.incidents$dep.date) == 0,"1/1/1900",df.incidents$dep.date)
+head(df.incidents,10)
+head(df.airlines,100)
+head(df.conditions,20)
+```
+
+```{r writeDataToTables, eval = T, warning = F}
+dbWriteTable(mydb, "conditions", df.conditions, overwrite = T)
+dbWriteTable(mydb, "incidents", df.incidents, overwrite = T)
+dbWriteTable(mydb, "airports", df.airports, overwrite = T)
+dbWriteTable(mydb, "airlines", df.airlines, overwrite = T)
+```
+## ######### Testing Tables Loading ############################################
+```{sql testIncidentsLoading, connection = mydb,eval = F}
+select * from incidents limit 20
+```
+
+```{sql testAirportsLoading, connection = mydb,eval = F}
+select * from airports limit 10
+```
+
+```{sql testAirlinesLoading, connection = mydb,eval = F}
+select * from airlines limit 10
+```
+```{sql testConditionsLoading, connection = mydb,eval = F}
+select * from conditions limit 10
+```
+
+## ######## Select the Data Required ###########################################
+```{sql mostIncidentsStates, connection = mydb,eval = F}
+select state, count(*)
+from incidents join airports on incidents.origin = airports.aid
+group by state
+order by count(*) desc
+```
+
+```{sql airlineOverAvg, connection = mydb,eval = F}
+select airline,airlineName, count(*) as incidents_count
+from incidents join airlines on incidents.airline = airlines.eid
+group by airline,airlineName
+having incidents_count > (select avg(num_incidents) 
+from (select airline,airlineName, count(*) as num_incidents
+from incidents join airlines on incidents.airline = airlines.eid
+group by airline,airlineName) as t)
+order by incidents_count desc
+```
+
+
+```{r numIncidentsMonthFP, eval = T, warning = F}
+rs <- dbGetQuery(mydb, "SELECT MONTH(STR_TO_DATE(incidents.`dep.date`,'%m/%d/%Y')) AS month,`flight.phase` ,count(*) as incidents_count
+From incidents
+group by month,`flight.phase`")
+head(rs,12)
+```
+```{r draw, eval = T, warning = F}
+new <- data.frame(month = integer(0), incidents_count = integer(0))
+# Creating a method to make a set of month and incidents count
+addToNew <- function(mon,count) {
+  doesExist <- any(new$month == mon)
+  if(doesExist == TRUE) {
+    r <- which(new$month == mon)
+    r[2] <- r[2] + count
+  } else {
+    lastRow <- nrow(new)
+    newRow <- lastRow + 1
+    new[newRow,'month'] <<- mon
+    new[newRow,'incidents_count'] <<- count 
+  }
+}
+n <- nrow(rs)
+for (row in 1:n) {
+  mon <- rs[row,'month']
+  count <- rs[row,'incidents_count']
+  addToNew(mon,count)
+}
+# Draw the plot graph
+plot(new$month,new$incidents_count,xlab="month",ylab="incidents count")
+```
+
+
+```{sql storeProcedure, connection = mydb,eval = F}
+create procedure add_incident(in rid integer,in dep_date text,in aName text,in eName text,in craft text,in flight_phase text,in altitude integer,in condIndex integer,in warned boolean)
+
+begin
+  declare airline_id int;
+  declare airport_id int;
+  declare res int;
+  
+  select eid into airline_id from airlines where airlineName = eName;
+  
+  if airline_id is null then
+    SELECT count(*) + 1 into airline_id from airlines;
+    insert into airlines(eid,airlineName) values (airline_id,eName);
+  end if;
+  
+  select aid into airport_id from airports where airportName = aName;
+  
+  if airport_id is null then
+    select count(*) + 1 into airport_id from airports;
+    insert into airports(aid,airportName) values (airport_id,aName);
+  end if;
+  
+  insert into incidents(rid,`dep.date`,origin,airline,aircraft,`flight.phase`,altitude,conditions,warned)
+  values(rid,dep_date,airport_id,airline_id,craft,flight_phase,altitude,condIndex,warned);
+
+end
+```
+
+
+```{sql dropStoreProcedure, connection = mydb,eval = F}
+drop procedure add_incident
+```
+
+```{sql callStoreProcedure, connection = mydb,eval = F}
+call add_incident(123456,"3/12/2000","shanghaipudong","jixiang","Airplane","climb",50,1,0);
+```

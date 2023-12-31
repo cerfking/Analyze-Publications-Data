@@ -1,0 +1,6 @@
+"0","```sql
+SELECT title, author
+FROM Book
+WHERE price < 0.8 * (SELECT AVG(price) FROM Book) OR price > 1.2 * (SELECT AVG(price) FROM Book)
+
+```"

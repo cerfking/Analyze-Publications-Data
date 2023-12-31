@@ -1,0 +1,2 @@
+"0","insert into airlines(eid,airlineName,airlineCode,flag)
+values(1,'US AIRWAYS*',null,null)"

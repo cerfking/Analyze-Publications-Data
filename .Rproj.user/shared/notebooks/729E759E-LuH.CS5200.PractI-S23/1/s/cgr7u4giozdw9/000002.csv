@@ -1,0 +1,4 @@
+"0","select state, count(*)
+from incidents join airports on incidents.origin = airports.aid
+group by state
+order by count(*) desc"

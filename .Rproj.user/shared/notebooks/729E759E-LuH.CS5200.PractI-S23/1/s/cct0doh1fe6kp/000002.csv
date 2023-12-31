@@ -1,0 +1,114 @@
+"0","```r
+df.airports <- data.frame(aid = integer(0),airportName = character(0),
+                          airportCode = character(0),state = character(0))
+# Method of finding the primary key from Airports table
+findAirportPK <- function(aName, aCode, aState) {
+  
+  aid <- 0
+  doesExist <- any(df.airports$airportName == aName)
+  
+  if (doesExist == TRUE) {
+    # in the case of pk in the table already; get the id out
+    r <- which(df.airports$airportName == aName)
+    aid <- r[1]
+  } else {
+    # in the case of pk is not in the table
+    lastRow <- nrow(df.airports)
+    newRow <- lastRow + 1
+    df.airports[newRow,'aid'] <<- newRow
+    if (nchar(aName) == 0) {
+      aName <- 'UNKNOWN'
+    }
+    if (nchar(aCode) == 0) {
+      aCode <- 'UNKNOWN'
+    }
+    # set up new rows with parameters
+    df.airports[newRow,'airportName'] <<- aName
+    df.airports[newRow,'airportCode'] <<- aCode
+    df.airports[newRow,'state'] <<- aState
+    
+    aid <- newRow
+  }
+  return(aid)
+}
+
+# another same stragety method of finding primary keys in airlines table
+df.airlines <- data.frame(eid = integer(0),airlineName = character(0),airlineCode = character(0),flag = character(0))
+findAirlinePK <- function(aName,aCode,aFlag) {
+  eid <- 0
+  doesExist <- any(df.airlines$airlineName == aName)
+  if (doesExist == TRUE) {
+    r <- which(df.airlines$airlineName == aName)
+    eid <- r[1]
+  } else {
+    lastRow <- nrow(df.airlines)
+    newRow <- lastRow + 1
+    df.airlines[newRow,'eid'] <<- newRow
+    if (nchar(aFlag) == 0) {
+      aFlag <- 'UNKNOWN'
+    }
+    if (nchar(aCode) == 0) {
+      aCode <- 'UNKNOWN'
+    }
+    df.airlines[newRow,'airlineName'] <<- aName
+    df.airlines[newRow,'airlineCode'] <<- aCode
+    df.airlines[newRow,'flag'] <<- aFlag
+    eid <- newRow
+  }
+  return(eid)
+}
+
+df.conditions <- data.frame(cid = integer(0),condition = character(0),explanation = character(0))
+findConditionPK <- function(con,expl) {
+  cid <- 0
+  doesExist <- any(df.conditions$`condition` == con)
+  if (doesExist == TRUE) {
+    r <- which(df.conditions$`condition` == con)
+    cid <- r[1]
+  } else {
+    lastRow <- nrow(df.conditions)
+    newRow <- lastRow + 1
+    df.conditions[newRow,'cid'] <<- newRow
+    if (nchar(expl) == 0) {
+      expl <- 'UNKNOWN'
+    }
+    df.conditions[newRow,'condition'] <<- con
+    df.conditions[newRow,'explanation'] <<- expl
+    cid <- newRow
+  }
+  return(cid)
+}
+
+df.incidents <- data.frame(rid = integer(0),dep.date = character(0),origin = integer(0),airline = integer(0),aircraft = character(0),flight.phase = character(0),altitude = integer(0),conditions = integer(0),warned = logical(0))
+n <- nrow(bds.raw)
+for (r in 1:n) {
+  df.incidents[r,'rid'] <- bds.raw[r,'rid']
+  df.incidents[r,'dep.date'] <- bds.raw[r,'flight_date']
+  
+  aName <- bds.raw[r,'airport']
+  aCode <- \"\"
+  aState <- bds.raw[r,'origin']
+  cond <- bds.raw[r,'sky_conditions']
+ 
+  df.incidents[r,'origin'] <- findAirportPK(aName, aCode, aState)
+  
+  df.incidents[r,'airline'] <- findAirlinePK(aName = bds.raw[r,'airline'],aCode = \"\",aFlag = \"\")
+  df.incidents[r,'aircraft'] <- bds.raw[r,'aircraft']
+  df.incidents[r,'flight.phase'] <- bds.raw[r,'flight_phase']
+  df.incidents[r,'altitude'] <- bds.raw[r,'altitude_ft']
+  df.incidents[r,'conditions'] <- findConditionPK(con = cond,expl = \"\")
+  if (bds.raw[r,'pilot_warned_flag'] == 'N') {
+    df.incidents[r,'warned'] <- 0
+  } else {
+    df.incidents[r,'warned'] <- 1
+  }
+}
+# clean up the date column by remove the time stamp
+df.incidents$dep.date <- substr(df.incidents$dep.date,1,nchar(df.incidents$dep.date)-5)
+
+# if there is no flight date, we'll set to 1/1/1900
+df.incidents$dep.date <- ifelse(nchar(df.incidents$dep.date) == 0,\"1/1/1900\",df.incidents$dep.date)
+head(df.incidents,10)
+head(df.airlines,100)
+head(df.conditions,20)
+```"

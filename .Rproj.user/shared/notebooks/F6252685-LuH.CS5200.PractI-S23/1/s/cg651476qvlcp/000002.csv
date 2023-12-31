@@ -1,0 +1,24 @@
+"0","```r
+new <- data.frame(month = integer(0), incidents_count = integer(0))
+# Creating a method to make a set of month and incidents count
+addToNew <- function(mon,count) {
+  doesExist <- any(new$month == mon)
+  if(doesExist == TRUE) {
+    r <- which(new$month == mon)
+    r[2] <- r[2] + count
+  } else {
+    lastRow <- nrow(new)
+    newRow <- lastRow + 1
+    new[newRow,'month'] <<- mon
+    new[newRow,'incidents_count'] <<- count 
+  }
+}
+n <- nrow(rs)
+for (row in 1:n) {
+  mon <- rs[row,'month']
+  count <- rs[row,'incidents_count']
+  addToNew(mon,count)
+}
+# Draw the plot graph
+plot(new$month,new$incidents_count,xlab=\"month\",ylab=\"incidents count\")
+```"

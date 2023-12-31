@@ -1,0 +1,8 @@
+"0","```sql
+create table airports(
+  aid integer primary key AUTO_INCREMENT,
+  airportName text,
+  airportCode text,
+  state text
+)
+```"

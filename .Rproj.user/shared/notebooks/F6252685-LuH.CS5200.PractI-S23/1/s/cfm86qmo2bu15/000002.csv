@@ -1,0 +1,8 @@
+"0","select airline,airlineName, count(*) as incidents_count
+from incidents join airlines on incidents.airline = airlines.eid
+group by airline,airlineName
+having incidents_count > (select avg(num_incidents) 
+from (select airline,airlineName, count(*) as num_incidents
+from incidents join airlines on incidents.airline = airlines.eid
+group by airline,airlineName) as t)
+order by incidents_count desc"

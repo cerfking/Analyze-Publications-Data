@@ -1,0 +1,76 @@
+---
+title: "Analytical Queries Report"
+author: "Yisong Cheng; Huajing Lu"
+date: "2023-04-19"
+output: pdf_document
+---
+
+# Introduction 
+
+  This report presents the results of two analytically queries performed on the 
+MySQL data warehouse from Part 2. The queries were designed to provide insights 
+on the journals with the most articles published and the number of articles per 
+journal per year, broken down by quarter.
+
+## Set up connection
+```{r message=FALSE, warning=FALSE}
+# 1. Library (must be installed prior to loading
+library(RMySQL)
+library(DBI)### MySQL
+
+# 2. Initial settings
+db_user <- 'root'
+db_password <- 'cerf0312*'
+db_name <- 'Journal'
+
+db_host <- 'localhost' 
+db_port <- 3306 # always this port unless you change it during installation
+
+# 3. Connect to the database
+mydb <-  dbConnect(MySQL(), user = db_user, password = db_password,
+                   dbname = db_name, host = db_host, 
+                   port = db_port, local_infile = TRUE)
+```
+
+# Query I: Top Five Journals with the Most Articles Published
+
+  The top five journals with the most articles published in them for the 
+time period are as follows:
+
+## Code part
+```{sql QUERY 1, connection=mydb}
+
+SELECT
+    Title, year, num_articles
+FROM
+    journal_facts
+WHERE year <= '1999' and year >= '1977'
+ORDER BY num_articles 
+DESC LIMIT 5
+```
+# Query II: Number of Articles per Journal per Year, Broken Down by Quarter
+  The following table shows the number of articles per journal per year, 
+broken down by quarter:
+
+## Code part
+
+```{sql QUERY 2, connection=mydb}
+SELECT 
+    year, quarter, Title, num_articles
+FROM journal_facts
+ORDER BY year, quarter
+```
+# Table > Visiualizaiton
+
+In this case, I suppose that a table is better than a visualization.
+
+1) Detail: A table can present a lot more detail than a visualization can. In this case, we need to display multiple metrics or dimensions, a table can show all of them in a compact form. With a visualization, it may need multiple charts or graphs to show the same amount of detail.
+
+2) Precision: A table can provide exact values, while a visualization can only provide estimates. This can be important in certain situations where exact numbers are critical.
+
+3) Comparison: A table can make it easier to compare values between different rows or columns. This is especially true when the table has been sorted or filtered in a specific way. With a visualization, it may be more difficult to make precise comparisons.
+
+```{r}
+dbDisconnect(mydb)
+```
+

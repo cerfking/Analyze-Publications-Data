@@ -1,0 +1,2 @@
+"0","insert into airports(aid,airportName,airportCode,state)
+values(1,'LAGUARDIA','LGA','NY')"

@@ -1,0 +1,2 @@
+"0","delete from airlines
+where eid = 1"

@@ -1,0 +1,25 @@
+"0","create procedure add_incident(in rid integer,in dep_date text,in aName text,in eName text,in craft text,in flight_phase text,in altitude integer,in condIndex integer,in warned boolean)
+
+begin
+  declare airline_id int;
+  declare airport_id int;
+  declare res int;
+  
+  select eid into airline_id from airlines where airlineName = eName;
+  
+  if airline_id is null then
+    SELECT count(*) + 1 into airline_id from airlines;
+    insert into airlines(eid,airlineName) values (airline_id,eName);
+  end if;
+  
+  select aid into airport_id from airports where airportName = aName;
+  
+  if airport_id is null then
+    select count(*) + 1 into airport_id from airports;
+    insert into airports(aid,airportName) values (airport_id,aName);
+  end if;
+  
+  insert into incidents(rid,`dep.date`,origin,airline,aircraft,`flight.phase`,altitude,conditions,warned)
+  values(rid,dep_date,airport_id,airline_id,craft,flight_phase,altitude,condIndex,warned);
+
+end"

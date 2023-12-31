@@ -1,0 +1,2 @@
+"0","delete from incidents
+where rid = 1"

@@ -1,0 +1,141 @@
+---
+title: "R Notebook"
+output:
+  html_notebook: default
+  pdf_document: default
+Author: Huajing Lu
+---
+```{r}
+knitr::include_graphics("https://imgur.com/a/gldrSW5")
+```
+
+```{r}
+library(RSQLite)
+fpath = "/Users/Cerf/Desktop/R/databases/"
+dbfile = "BooksDB.sqlite"
+dbcon <- dbConnect(SQLite(), paste0(fpath, dbfile))
+
+```
+```{r} 
+dbExecute(dbcon, "PRAGMA foreign_keys = ON")
+```
+##Question2
+Create a SQLite database
+```{sql connection=dbcon}
+DROP TABLE IF EXISTS Book
+```
+
+```{sql connection= dbcon}
+CREATE TABLE Book(
+  id NUMBER PRIMARY KEY NOT NULL,
+  author TEXT NOT NULL,
+  title TEXT NOT NULL,
+  editon NUMBER,
+  genre TEXT NOT NULL,
+  price NUMBER NOT NULL,
+  publish_date DATE,
+  description TEXT NOT NULL
+)
+```
+##Question3
+Load the XML data from the file into R data frames
+```{r} 
+library(XML)
+library(DBI)
+library(knitr)
+xmlfn <- "Books-v3.xml"
+# Reading the XML file and parse into DOM
+xmlDOM <- xmlParse(file = xmlfn)
+
+# get the root node of the DOM tree
+r <- xmlRoot(xmlDOM)
+
+numBook <- xmlSize(r)
+Book.df <- data.frame(id = integer(),
+                      author = character(),
+                      title = character(),
+                      editon = integer(),
+                      genre = character(),
+                      price = double(),
+                      publish_date = character(),
+                      description = character(),
+                      stringsAsFactors = F
+                      )
+parseBook <- function(aBookNode)
+{
+  book.attrs <- xmlAttrs(aBookNode)
+  id <- book.attrs[[1]]
+  author <- xmlValue(aBookNode[[1]])
+  title <- xmlValue(aBookNode[[2]])
+  node <- xmlName(aBookNode[[3]])
+  if (node == "edition")
+  {
+   edition <- as.numeric(xmlValue(aBookNode[[3]])) 
+   genre <- xmlValue(aBookNode[[4]])
+   price <- as.numeric(xmlValue(aBookNode[[5]]))
+   publish_date <- xmlValue((aBookNode[[6]]))
+   description <- xmlValue(aBookNode[[7]])
+  }
+  else {
+   edition <- NA
+   genre <- xmlValue(aBookNode[[3]])
+   price <- as.numeric(xmlValue(aBookNode[[4]]))
+   publish_date <- xmlValue((aBookNode[[5]]))
+   description <- xmlValue(aBookNode[[6]])
+  }
+  
+  newBook.df <- data.frame(id, author, title, edition, genre, price, publish_date, description, stringsAsFactors = F)
+  
+  return(newBook.df)
+    
+  
+}
+for (i in 1:numBook) {
+  aBookNode <- r[[i]]
+  aNewBook <- parseBook(aBookNode)
+ 
+  Book.df[i,1:ncol(Book.df)] <- aNewBook[1,]
+  
+}
+
+```
+##Question4
+Transform data types as necessary and then save the data frames to the appropriate tables in the database
+```{r}
+dbWriteTable(dbcon, "Book", Book.df, overwrite = T)
+```
+
+##Question5
+The number of genres have at least three books
+```{sql connection= dbcon}
+SELECT COUNT(DISTINCT genre)
+FROM (
+  SELECT genre,COUNT(*) as num_books
+  FROM Book
+  GROUP BY genre
+  HAVING num_books >= 3
+)
+
+```
+##Question5
+The oldest year in which a publication was published
+```{sql connection= dbcon}
+SELECT SUBSTR(MIN(publish_date),1,4) as oldest_year FROM Book
+
+```
+##Question5
+The number of books and average price for each genre
+```{sql connection= dbcon}
+SELECT genre, COUNT(*) AS num_books, AVG(price) AS avg_price
+FROM Book
+GROUP BY genre
+
+```
+##Question5
+The title and author of all books that are less than 0.8*AVG or more than 1.2*AVG, where AVG is the average price of all books
+```{sql connection= dbcon}
+SELECT title, author
+FROM Book
+WHERE price < 0.8 * (SELECT AVG(price) FROM Book) OR price > 1.2 * (SELECT AVG(price) FROM Book)
+
+```

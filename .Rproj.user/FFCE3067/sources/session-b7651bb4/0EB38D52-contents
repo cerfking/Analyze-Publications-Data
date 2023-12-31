@@ -1,0 +1,489 @@
+#Author:Huajing Lu,Yisong Cheng
+library(RSQLite)
+fpath = "/Users/Cerf/Desktop/R/databases/"
+dbfile = "PublicationDB.sqlite"
+dbcon <- dbConnect(SQLite(), paste0(fpath, dbfile))
+dbExecute(dbcon,"DROP TABLE IF EXISTS Articles")
+dbExecute(dbcon, "CREATE TABLE Articles ( PMID integer primary key, Title text, 
+          Journal_ISSN text, foreign key (Journal_ISSN) references Journal(Issn))")
+
+dbExecute(dbcon,"DROP TABLE IF EXISTS Author")
+dbExecute(dbcon, "CREATE TABLE Author ( AuthorID integer primary key,
+          LastName text, ForeName text, Initials text)")
+
+dbExecute(dbcon,"DROP TABLE IF EXISTS Journal")
+dbExecute(dbcon, "CREATE TABLE Journal ( ISSN Text primary key, IssnType text,
+           CitedMedium text, Volume integer, Issue integer, PubDate text,PubYear text,PubQuarter integer,
+           Title text, ISOAbbreviation text)")
+
+dbExecute(dbcon,"DROP TABLE IF EXISTS Authorship")
+dbExecute(dbcon,"CREATE TABLE Authorship (id integer primary key,article_id integer,author_id integer,
+          foreign key (article_id) references Articles(PMID),foreign key (author_id) references Author(AuthorID))")
+
+library(XML)
+xmlFile <- "Publications.xml"
+xmlURL <- "http://lc-gluttony.s3.amazonaws.com/eI6cG7I0MstT/GzSA9pSd5TQc8OvIAxqRKNN4EpvBiNXm/Publications.xml"
+dtdURL <- "http://lc-gluttony.s3.amazonaws.com/eI6cG7I0MstT/v0tNtH0iJDMu2u7LoXt6NQ86CH0XXBO0/Publications.dtd"
+
+dom <- xmlParse(xmlURL,validate = T)
+
+r <- xmlRoot(dom)
+numArticle <- xmlSize(r)
+numAuthor <- xmlSize(r[[1]][[1]][[3]])
+
+
+article.df <- data.frame(PMID = integer(),
+                       Title = character(),
+                       Journal_ISSN = character(),
+                       stringsAsFactors = F)
+
+parseArticle <- function(anArticleNode)
+{
+  article.attrs <- xmlAttrs(anArticleNode)
+  PMID <- article.attrs[[1]]
+  title <- xmlValue(anArticleNode[[1]][[2]])
+  journalISSN <- xmlValue(anArticleNode[[1]][[1]][[1]])
+  
+  newArticle.df <- data.frame(PMID, title, journalISSN, stringsAsFactors = F)
+  return(newArticle.df)
+}
+
+author.df <- data.frame(AuthorID = integer(),
+                        CollectiveName = character(),
+                        LastName = character(),
+                        ForeName = character(),
+                        FullName = character(),
+                        Initials = character(),
+                        Suffix = character(),
+                        Affiliation = character())
+parseAuthor <- function(anAuthorNode, i)
+{
+  AuthorID <- i
+  CollectiveName <- ""
+  LastName <- ""
+  ForeName <- ""
+  FullName <- ""
+  Initials <- ""
+  Suffix <- ""
+  Affiliation <- ""
+  if (!is.null(anAuthorNode[[1]])) {
+    node <- xmlName(anAuthorNode[[1]])
+    if (node == "CollectiveName") 
+    {
+      CollectiveName <- xmlValue(anAuthorNode[[1]])
+      LastName <- NA
+      ForeName <- NA
+      FullName <- xmlValue(anAuthorNode[[1]])
+      Initials <- NA
+      Suffix <- NA
+      Affiliation <- NA
+    }
+    else
+    {
+      CollectiveName <- NA
+      LastName <- xmlValue(anAuthorNode[[1]])
+      ForeName <- xmlValue(anAuthorNode[[2]])
+      FullName <- paste(ForeName, LastName, sep = " ")
+      Initials <- xmlValue(anAuthorNode[[3]])
+      
+      Suffix <- NA
+      Affiliation <- NA
+      if (!is.null(anAuthorNode[[4]]))
+      { 
+        if (xmlName(anAuthorNode[[4]]) == "Suffix") {
+          Suffix <- xmlValue(anAuthorNode[[4]])
+          Affiliation <- NA
+        }
+        if (xmlName(anAuthorNode[[4]]) == "Affiliation") {
+          Suffix <- NA
+          Affiliation <- xmlValue(anAuthorNode[[4]][[1]])
+        }
+      } 
+    }
+  }
+
+  
+  newAuthor.df <- data.frame(AuthorID,CollectiveName,LastName,ForeName,FullName,Initials,Suffix,Affiliation)
+  return(newAuthor.df)
+}
+
+journal.df <- data.frame(Issn = character(),
+                         IssnType = character(),
+                         CitedMedium = character(),
+                         Volume = character(),
+                         Issue = character(),
+                         PubDate = character(),
+                         PubYear = character(),
+                         PubQuarter = integer(),
+                         Title = character(),
+                         ISOAbbreviation = character())
+parseJournal <- function(aJournalNode)
+{ 
+  Issn <- NA
+  IssnType <- NA
+  CitedMedium <- NA
+  Volume <- NA
+  Issue <- NA
+  PubDate <- NA
+  PubYear <- NA
+  PubQuarter <- NA
+  Title <- NA
+  ISOAbbreviation <- NA
+  if (xmlName(aJournalNode[[1]]) == "ISSN")
+  {
+  Issn <- xmlValue(aJournalNode[[1]])
+  Issn.attrs <- xmlAttrs(aJournalNode[[1]])
+  IssnType <- Issn.attrs[[1]]
+  JournalIssue.attrs <- xmlAttrs(aJournalNode[[2]])
+  CitedMedium <- JournalIssue.attrs[[1]]
+  if (!is.null(aJournalNode[[2]][[1]])) {
+    if (xmlName(aJournalNode[[2]][[1]]) == "Volume") {
+      Volume <- xmlValue(aJournalNode[[2]][[1]])
+    }
+    if (xmlName(aJournalNode[[2]][[1]]) == "Issue") {
+      Issue <- xmlValue(aJournalNode[[2]][[1]])
+    }
+    if (xmlName(aJournalNode[[2]][[1]]) == "PubDate") {
+      if (!is.null(aJournalNode[[2]][[1]][[1]])) {
+        if (xmlName(aJournalNode[[2]][[1]][[1]]) == "MedlineDate") {
+          PubYear <<- substr(xmlValue(aJournalNode[[2]][[2]][[1]]), start = 1, stop = 4)
+          
+        }
+        if (xmlName(aJournalNode[[2]][[1]][[1]]) == "Year") {
+          PubYear <- xmlValue(aJournalNode[[2]][[2]][[1]])
+        }
+        
+      }
+      
+      
+      if (!is.null(aJournalNode[[2]][[1]][[2]])) {
+        if (xmlName(aJournalNode[[2]][[1]][[2]]) == "Month") {
+          PubMonth <- xmlValue(aJournalNode[[2]][[1]][[2]])
+          if (PubMonth == "Jan" || PubMonth == "Feb" || PubMonth == "Mar") {
+            PubQuarter <- 1
+          } else if (PubMonth == "Apr" || PubMonth == "May" || PubMonth == "Jun") {
+            PubQuarter <- 2
+          } else if (PubMonth == "Jul" || PubMonth == "Aug" || PubMonth == "Sep") {
+            PubQuarter <- 3
+          } else if (PubMonth == "Oct" || PubMonth == "Nov" || PubMonth == "Dec") {
+            PubQuarter <- 4
+          }
+          PubDate <- paste(PubYear, PubMonth, sep = "-")
+        } 
+      } else {
+        PubDate <- PubYear
+      }
+    
+      
+    }
+  }
+  if (!is.null(aJournalNode[[2]][[2]])) {
+    if (xmlName(aJournalNode[[2]][[2]]) == "Issue") {
+      Issue <- xmlValue(aJournalNode[[2]][[2]])
+    }
+    if (xmlName(aJournalNode[[2]][[2]]) == "PubDate") {
+      
+      if (!is.null(aJournalNode[[2]][[2]][[1]])) {
+        if (xmlName(aJournalNode[[2]][[2]][[1]]) == "MedlineDate") {
+      
+          PubYear <- substr(xmlValue(aJournalNode[[2]][[2]][[1]]), start = 1, stop = 4)
+          print(PubYear)
+         
+        }
+        if (xmlName(aJournalNode[[2]][[2]][[1]]) == "Year") {
+          PubYear <- xmlValue(aJournalNode[[2]][[2]][[1]])
+        }
+        
+      }
+      if (!is.null(aJournalNode[[2]][[2]][[2]])) {
+        if (xmlName(aJournalNode[[2]][[2]][[2]]) == "Month") {
+          PubMonth <- xmlValue(aJournalNode[[2]][[2]][[2]])
+          if (PubMonth == "Jan" || PubMonth == "Feb" || PubMonth == "Mar") {
+            PubQuarter <- 1
+          } else if (PubMonth == "Apr" || PubMonth == "May" || PubMonth == "Jun") {
+            PubQuarter <- 2
+          } else if (PubMonth == "Jul" || PubMonth == "Aug" || PubMonth == "Sep") {
+            PubQuarter <- 3
+          } else if (PubMonth == "Oct" || PubMonth == "Nov" || PubMonth == "Dec") {
+            PubQuarter <- 4
+          }
+          PubDate <- paste(PubYear, PubMonth, sep = "-")
+        } 
+      } else {
+        PubDate <- xmlValue(aJournalNode[[2]][[2]][[1]])
+      }
+      
+      
+    }
+  }
+  if (!is.null(aJournalNode[[2]][[3]][[1]]))
+  {
+    if (xmlName(aJournalNode[[2]][[3]][[1]]) == "MedlineDate")
+    {
+      if (is.null(aJournalNode[[2]][[3]][[2]])) {
+        PubYear <- substr(xmlValue(aJournalNode[[2]][[3]][[1]])  , start = 1, stop = 4)
+        
+      }
+      PubDate <- xmlValue(aJournalNode[[2]][[3]][[1]])
+    }
+    if (xmlName(aJournalNode[[2]][[3]][[1]]) == "Year")
+    {
+      
+      PubYear <- xmlValue(aJournalNode[[2]][[3]][[1]])
+        
+    }
+    if (!is.null(aJournalNode[[2]][[3]][[2]]))
+    {
+      if (xmlName(aJournalNode[[2]][[3]][[2]]) == "Season")
+      {
+        
+        PubSeason <- ""
+        PubSeason <- xmlValue(aJournalNode[[2]][[3]][[2]])
+        if (PubSeason == "Spring") {
+          PubQuarter <- 1
+        } else if (PubSeason == "Summer") {
+          PubQuarter <- 2
+        } else if (PubSeason == "Fall") {
+          PubQuarter <- 3
+        } else if (PubSeason == "Winter") {
+          PubQuarter <- 4
+        } 
+        PubDate <- paste(PubYear, PubSeason, sep = "-")   
+      }
+      if (xmlName(aJournalNode[[2]][[3]][[2]]) == "Month" && is.null(aJournalNode[[2]][[3]][[3]]))
+      {
+        PubYear <- xmlValue(aJournalNode[[2]][[3]][[1]])  
+        PubMonth <- xmlValue(aJournalNode[[2]][[3]][[2]])
+        if (PubMonth == "Jan" || PubMonth == "Feb" || PubMonth == "Mar") {
+          PubQuarter <- 1
+        } else if (PubMonth == "Apr" || PubMonth == "May" || PubMonth == "Jun") {
+          PubQuarter <- 2
+        } else if (PubMonth == "Jul" || PubMonth == "Aug" || PubMonth == "Sep") {
+          PubQuarter <- 3
+        } else if (PubMonth == "Oct" || PubMonth == "Nov" || PubMonth == "Dec") {
+          PubQuarter <- 4
+        }
+        PubDate <- paste(PubYear, PubMonth, sep = "-")
+      }
+      if (!is.null(aJournalNode[[2]][[3]][[3]]))
+      {
+        if (xmlName(aJournalNode[[2]][[3]][[3]]) == "Day")
+        {
+          PubYear <- xmlValue(aJournalNode[[2]][[3]][[1]])  
+          PubMonth <- xmlValue(aJournalNode[[2]][[3]][[2]])
+          PubDay <- xmlValue(aJournalNode[[2]][[3]][[3]])
+          PubDate <- paste(PubYear, PubMonth, PubDay,sep = "-")  
+        }
+      }
+    }
+    
+  }
+  Title <- xmlValue(aJournalNode[[3]])
+  ISOAbbreviation <- xmlValue(aJournalNode[[4]])
+  newJournal.df <- data.frame(Issn,IssnType,CitedMedium,Volume,Issue,PubDate,PubYear,PubQuarter,Title,ISOAbbreviation)
+  }
+  if (xmlName(aJournalNode[[1]]) == "JournalIssue")
+  {
+    Issn <- "UNKNOWN"
+    IssnType <- "UNKNOWN"
+    JournalIssue.attrs <- xmlAttrs(aJournalNode[[1]])
+    CitedMedium <- JournalIssue.attrs[[1]]
+    
+    if (!is.null(aJournalNode[[1]][[1]])) {
+      if (xmlName(aJournalNode[[1]][[1]]) == "Volume") {
+        Volume <- xmlValue(aJournalNode[[1]][[1]])
+      }
+    }
+    if (!is.null(aJournalNode[[1]][[2]])) {
+      if (xmlName(aJournalNode[[1]][[2]]) == "Issue") {
+        Issue <- xmlValue(aJournalNode[[1]][[2]])
+      }
+    }
+    if (!is.null(aJournalNode[[1]][[3]][[1]]))
+    {
+      if (xmlName(aJournalNode[[1]][[3]][[1]]) == "MedlineDate")
+      {
+        if (is.null(aJournalNode[[1]][[3]][[2]])) {
+          PubYear <- substr(xmlValue(aJournalNode[[1]][[3]][[1]])  , start = 1, stop = 4)
+          
+        }
+        PubDate <- xmlValue(aJournalNode[[1]][[3]][[1]])
+      }
+      if (xmlName(aJournalNode[[1]][[3]][[1]]) == "Year" && is.null(aJournalNode[[1]][[3]][[2]]))
+      {
+        PubDate <- xmlValue(aJournalNode[[1]][[3]][[1]])
+        PubYear <- xmlValue(aJournalNode[[1]][[3]][[1]])
+      }
+      if (!is.null(aJournalNode[[1]][[3]][[2]]))
+      {
+        if (xmlName(aJournalNode[[1]][[3]][[2]]) == "Season")
+        {
+          PubYear <- xmlValue(aJournalNode[[1]][[3]][[1]])
+          
+          PubSeason <- xmlValue(aJournalNode[[1]][[3]][[2]])
+          
+          if (PubSeason == "Spring") {
+            PubQuarter <- 1
+          } else if (PubSeason == "Summer") {
+            PubQuarter <- 2
+          } else if (PubSeason == "Fall") {
+            PubQuarter <- 3
+          } else if (PubSeason == "Winter") {
+            PubQuarter <- 4
+          }
+          PubDate <- paste(PubYear, PubSeason, sep = "-")   
+        }
+        if (xmlName(aJournalNode[[1]][[3]][[2]]) == "Month" && is.null(aJournalNode[[1]][[3]][[3]]))
+        {
+          PubYear <- xmlValue(aJournalNode[[1]][[3]][[1]])  
+          PubMonth <- xmlValue(aJournalNode[[1]][[3]][[2]])
+          if (PubMonth == "Jan" || PubMonth == "Feb" || PubMonth == "Mar") {
+            PubQuarter <- 1
+          } else if (PubMonth == "Apr" || PubMonth == "May" || PubMonth == "Jun") {
+            PubQuarter <- 2
+          } else if (PubMonth == "Jul" || PubMonth == "Aug" || PubMonth == "Sep") {
+            PubQuarter <- 3
+          } else if (PubMonth == "Oct" || PubMonth == "Nov" || PubMonth == "Dec") {
+            PubQuarter <- 4
+          }
+          PubDate <- paste(PubYear, PubMonth, sep = "-")
+        }
+        if (!is.null(aJournalNode[[1]][[3]][[3]]))
+        {
+          if (xmlName(aJournalNode[[1]][[3]][[3]]) == "Day")
+          {
+            PubYear <- xmlValue(aJournalNode[[1]][[3]][[1]])  
+            PubMonth <- xmlValue(aJournalNode[[1]][[3]][[2]])
+            PubDay <- xmlValue(aJournalNode[[1]][[3]][[3]])
+            PubDate <- paste(PubYear, PubMonth, PubDay,sep = "-")  
+          }
+        }
+      }
+    
+    }
+    Title <- xmlValue(aJournalNode[[2]])
+    ISOAbbreviation <- xmlValue(aJournalNode[[3]])
+
+    newJournal.df <- data.frame(Issn,IssnType,CitedMedium,Volume,Issue,PubDate,PubYear,PubQuarter,Title,ISOAbbreviation)
+  }
+  
+
+  
+
+  
+  return(newJournal.df)
+  
+}
+
+for (i in 1:numArticle) {
+  anArticleNode <- r[[i]]
+  aNewArticle <- parseArticle(anArticleNode)
+  
+  article.df[i,1:ncol(article.df)] <- aNewArticle[1,]
+  
+}
+
+authorCount <- 1
+
+for (i in 1:numArticle) {
+  anArticleNode <- r[[i]]
+  numAuthor <- xmlSize(anArticleNode[[1]][[3]])
+  for (j in 1:numAuthor) {
+    anAuthorNode <- anArticleNode[[1]][[3]][[j]]
+    aNewAuthor <- parseAuthor(anAuthorNode,authorCount)
+    doesExist <- any(author.df$FullName == aNewAuthor[[5]])
+    if (doesExist == TRUE) {
+      next
+    } else {
+      author.df[authorCount, 1:ncol(author.df)] <- aNewAuthor[1,]
+      authorCount <- authorCount + 1
+    }
+    
+  }
+  
+}
+
+journalCount <- 1
+for (i in 1:numArticle) {
+  anArticleNode <- r[[i]]
+  aJournalNode <- anArticleNode[[1]][[1]]
+  aNewJournal <- parseJournal(aJournalNode)
+  doesExist <- any(journal.df$Issn == aNewJournal[[1]])
+  if (doesExist == TRUE) {
+    next
+  } else {
+    journal.df[journalCount,1:ncol(journal.df)] <- aNewJournal[1,]
+    journalCount <- journalCount + 1
+  }
+  
+ 
+}
+
+dbWriteTable(dbcon, "Articles", article.df, overwrite = T)
+dbWriteTable(dbcon, "Author", author.df, overwrite = T)
+dbWriteTable(dbcon, "Journal", journal.df, overwrite = T)
+
+dbGetQuery(dbcon,"SELECT * FROM Journal LIMIT 10")
+
+
+articleAuthors.df <- data.frame(id = integer(),
+                                article_id = integer(),
+                                author_id = integer(),
+                                stringsAsFactors = F)
+
+id <- 0
+  parseArticleAuthors <- function(anArticleNode)
+  { 
+    
+    article.attrs <- xmlAttrs(anArticleNode)
+    article_id <- article.attrs[[1]]
+    numAuthor <- xmlSize(anArticleNode[[1]][[3]])
+    Name <- ""
+    for (j in 1:numAuthor) {
+      id <<- id + 1
+      anAuthorNode <- anArticleNode[[1]][[3]][[j]]
+      if (!is.null(anAuthorNode[[1]])) {
+        node <- xmlName(anAuthorNode[[1]])
+        if (node == "CollectiveName") 
+        {
+          Name <- xmlValue(anAuthorNode[[1]])
+        }
+        else
+        {
+          LastName <- xmlValue(anAuthorNode[[1]])
+          ForeName <- xmlValue(anAuthorNode[[2]])
+          Name <- paste(ForeName, LastName, sep = " ")
+        }
+      }
+      author_id <- subset(author.df, FullName == Name, select = AuthorID)$AuthorID
+  
+      newArticleAuthor.df <- data.frame(id,article_id,author_id,stringsAsFactors = F)
+      
+      articleAuthors.df[id,1:ncol(articleAuthors.df)] <<- newArticleAuthor.df[1,]
+      
+    }
+  }
+  
+  for (i in 1:numArticle) {
+    anArticleNode <- r[[i]]
+    parseArticleAuthors(anArticleNode)
+   
+  }
+  
+
+  
+dbWriteTable(dbcon, "Authorship", articleAuthors.df, overwrite = T)
+
+dbGetQuery(dbcon,"SELECT * FROM Authorship LIMIT 10")
+
+dbGetQuery(dbcon,"SELECT * FROM Journal LIMIT 100")
+  
+
+  
+ 
+  
+
+  
+
+
+

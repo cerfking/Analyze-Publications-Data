@@ -1,0 +1,4 @@
+"0","SELECT 
+    year, quarter, Title, num_articles
+FROM journal_facts
+ORDER BY year, quarter"

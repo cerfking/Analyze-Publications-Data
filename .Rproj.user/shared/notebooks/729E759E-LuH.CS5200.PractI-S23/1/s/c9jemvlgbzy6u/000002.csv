@@ -1,0 +1,16 @@
+"0","```r
+# 1. Library (must be installed prior to loading
+library(RMySQL)     ### MySQL
+
+# 2. Initial settings
+db_user <- 'root'
+db_password <- 'cerf0312*'
+db_name <- 'Test'
+
+db_host <- 'localhost' 
+db_port <- 3306 # always this port unless you change it during installation
+
+# 3. Connect to the database
+mydb <-  dbConnect(MySQL(), user = db_user, password = db_password,
+                 dbname = db_name, host = db_host, port = db_port)
+```"

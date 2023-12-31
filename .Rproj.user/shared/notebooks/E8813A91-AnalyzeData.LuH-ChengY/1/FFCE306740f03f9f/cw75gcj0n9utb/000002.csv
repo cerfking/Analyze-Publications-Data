@@ -1,0 +1,8 @@
+"0","
+SELECT
+    Title, year, num_articles
+FROM
+    journal_facts
+
+ORDER BY num_articles 
+DESC LIMIT 5"

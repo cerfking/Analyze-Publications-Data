@@ -1,0 +1,6 @@
+"0","```sql
+SELECT genre, COUNT(*) AS num_books, AVG(price) AS avg_price
+FROM Book
+GROUP BY genre
+
+```"

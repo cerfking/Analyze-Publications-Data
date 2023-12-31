@@ -1,0 +1,10 @@
+"0","```sql
+SELECT COUNT(DISTINCT genre)
+FROM (
+  SELECT genre,COUNT(*) as num_books
+  FROM Book
+  GROUP BY genre
+  HAVING num_books >= 3
+)
+
+```"

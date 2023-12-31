@@ -1,0 +1,60 @@
+"0","```r
+library(XML)
+library(DBI)
+library(knitr)
+xmlfn <- \"Books-v3.xml\"
+# Reading the XML file and parse into DOM
+xmlDOM <- xmlParse(file = xmlfn)
+
+# get the root node of the DOM tree
+r <- xmlRoot(xmlDOM)
+
+numBook <- xmlSize(r)
+Book.df <- data.frame(id = integer(),
+                      author = character(),
+                      title = character(),
+                      editon = integer(),
+                      genre = character(),
+                      price = double(),
+                      publish_date = character(),
+                      description = character(),
+                      stringsAsFactors = F
+                      )
+parseBook <- function(aBookNode)
+{
+  book.attrs <- xmlAttrs(aBookNode)
+  id <- book.attrs[[1]]
+  author <- xmlValue(aBookNode[[1]])
+  title <- xmlValue(aBookNode[[2]])
+  node <- xmlName(aBookNode[[3]])
+  if (node == \"edition\")
+  {
+   edition <- as.numeric(xmlValue(aBookNode[[3]])) 
+   genre <- xmlValue(aBookNode[[4]])
+   price <- as.numeric(xmlValue(aBookNode[[5]]))
+   publish_date <- xmlValue((aBookNode[[6]]))
+   description <- xmlValue(aBookNode[[7]])
+  }
+  else {
+   edition <- NA
+   genre <- xmlValue(aBookNode[[3]])
+   price <- as.numeric(xmlValue(aBookNode[[4]]))
+   publish_date <- xmlValue((aBookNode[[5]]))
+   description <- xmlValue(aBookNode[[6]])
+  }
+  
+  newBook.df <- data.frame(id, author, title, edition, genre, price, publish_date, description, stringsAsFactors = F)
+  
+  return(newBook.df)
+    
+  
+}
+for (i in 1:numBook) {
+  aBookNode <- r[[i]]
+  aNewBook <- parseBook(aBookNode)
+ 
+  Book.df[i,1:ncol(Book.df)] <- aNewBook[1,]
+  
+}
+
+```"

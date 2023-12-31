@@ -1,0 +1,8 @@
+"0","```sql
+create table airlines(
+  eid integer primary key AUTO_INCREMENT,
+  airlineName text,
+  airlineCode text,
+  flag text
+)
+```"

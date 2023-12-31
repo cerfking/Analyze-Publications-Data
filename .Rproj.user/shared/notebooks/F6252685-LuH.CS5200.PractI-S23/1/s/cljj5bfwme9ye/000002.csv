@@ -1,0 +1,18 @@
+"0","```sql
+create table incidents(
+  rid integer primary key,
+  depdate date,
+  origin integer,
+  airline integer,
+  aircraft text,
+  flightphase text,
+  altitude integer,
+  conditions integer,
+  warned boolean,
+  foreign key (origin) references airports(aid),
+  foreign key (airline) references airlines(eid),
+  foreign key (conditions) references conditions(cid),
+  CHECK (altitude > 0),
+  CHECK (flightphase IN ('takeoff','landing','inflight','unknown'))
+)
+```"

@@ -1,0 +1,2 @@
+"0","delete from airports
+where aid = 1"

@@ -1,0 +1,6 @@
+"0","```r
+rs <- dbGetQuery(mydb, \"SELECT MONTH(STR_TO_DATE(incidents.`dep.date`,'%m/%d/%Y')) AS month,`flight.phase` ,count(*) as incidents_count
+From incidents
+group by month,`flight.phase`\")
+head(rs,12)
+```"

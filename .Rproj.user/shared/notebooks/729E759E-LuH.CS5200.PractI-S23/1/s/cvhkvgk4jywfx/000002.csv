@@ -1,0 +1,8 @@
+"0","```sql
+create table conditions(
+  cid integer primary key,
+  `condition` text,
+  explanation text
+  
+)
+```"

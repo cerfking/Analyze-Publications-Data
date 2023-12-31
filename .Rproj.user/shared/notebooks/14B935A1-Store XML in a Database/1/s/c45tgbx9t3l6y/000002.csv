@@ -1,0 +1,4 @@
+"0","```sql
+SELECT SUBSTR(MIN(publish_date),1,4) as oldest_year FROM Book
+
+```"
